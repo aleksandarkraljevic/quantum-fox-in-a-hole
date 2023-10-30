@@ -56,11 +56,6 @@ def generate_circuit(qubits, n_layers):
 
     return circuit, list(params.flat), list(inputs.flat)
 
-n_qubits, n_layers = 3, 1
-qubits = cirq.GridQubit.rect(1, n_qubits)
-circuit, _, _ = generate_circuit(qubits, n_layers)
-SVGCircuit(circuit)
-
 class ReUploadingPQC(tf.keras.layers.Layer):
     """
     Performs the transformation (s_1, ..., s_d) -> (theta_1, ..., theta_N, lmbd[1][1]s_1, ..., lmbd[1][M]s_1,
