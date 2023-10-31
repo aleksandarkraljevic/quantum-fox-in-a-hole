@@ -6,6 +6,7 @@ import tensorflow_quantum as tfq
 
 import gym, cirq, sympy
 import numpy as np
+from fox_in_a_hole import *
 from functools import reduce
 from collections import deque, defaultdict
 import matplotlib.pyplot as plt
@@ -117,13 +118,15 @@ class Rescaling(tf.keras.layers.Layer):
     def call(self, inputs):
         return tf.math.multiply((inputs+1)/2, tf.repeat(self.w,repeats=tf.shape(inputs)[0],axis=0))
 
-n_qubits = 4 # Dimension of the state vectors in CartPole
+n_holes = 5
+memory_size = 2*n_holes
+n_qubits = memory_size
 n_layers = 5 # Number of layers in the PQC
-n_actions = 2 # Number of actions in CartPole
+n_actions = n_holes
 
 qubits = cirq.GridQubit.rect(1, n_qubits)
 ops = [cirq.Z(q) for q in qubits]
-observables = [ops[0]*ops[1], ops[2]*ops[3]] # Z_0*Z_1 for action 0 and Z_2*Z_3 for action 1
+observables = [ops[0]*ops[1], ops[2]*ops[3], ops[4]*ops[5], ops[6]*ops[7], ops[8]*ops[9]] # Z_0*Z_1 for action 0 and Z_2*Z_3 for action 1, etc.
 
 def generate_model_Qlearning(qubits, n_layers, n_actions, observables, target):
     """Generates a Keras model for a data re-uploading PQC Q-function approximator."""
@@ -145,7 +148,7 @@ tf.keras.utils.plot_model(model, show_shapes=True, dpi=70)
 
 tf.keras.utils.plot_model(model_target, show_shapes=True, dpi=70)
 
-def interact_env(state, model, epsilon, n_actions, env):
+def interact_env(state, model, epsilon, n_actions, env, current_episode_length):
     # Preprocess state
     state_array = np.array(state)
     state = tf.convert_to_tensor([state_array])
@@ -159,7 +162,9 @@ def interact_env(state, model, epsilon, n_actions, env):
         action = np.random.choice(n_actions)
 
     # Apply sampled action in the environment, receive reward and next state
-    next_state, reward, done, _ = env.step(action)
+    reward, done = env.guess(action, current_episode_length)
+    next_state = state_array.copy()
+    next_state[current_episode_length-1] = action
 
     interaction = {'state': state_array, 'action': action, 'next_state': next_state.copy(),
                    'reward': reward, 'done':np.float32(done)}
@@ -192,8 +197,9 @@ def Q_learning_update(states, actions, rewards, next_states, done, model, gamma,
     for optimizer, w in zip([optimizer_in, optimizer_var, optimizer_out], [w_in, w_var, w_out]):
         optimizer.apply_gradients([(grads[w], model.trainable_variables[w])])
 
+
 gamma = 0.99
-n_episodes = 2000
+n_episodes = 100
 
 # Define replay memory
 max_memory_length = 10000 # Maximum replay length
@@ -213,17 +219,21 @@ optimizer_out = tf.keras.optimizers.Adam(learning_rate=0.1, amsgrad=True)
 # Assign the model parameters to each optimizer
 w_in, w_var, w_out = 1, 0, 2
 
-env = gym.make("CartPole-v1")
+env = FoxInAHole(n_holes, memory_size)
 
 episode_reward_history = []
 step_count = 0
 for episode in range(n_episodes):
     episode_reward = 0
-    state = env.reset()
+    state = [0] * memory_size
+    done = env.reset()
+    current_episode_length = 0
 
     while True:
+        current_episode_length += 1
+
         # Interact with env
-        interaction = interact_env(state, model, epsilon, n_actions, env)
+        interaction = interact_env(state, model, epsilon, n_actions, env, current_episode_length)
 
         # Store interaction in the replay memory
         replay_memory.append(interaction)
@@ -258,8 +268,6 @@ for episode in range(n_episodes):
         avg_rewards = np.mean(episode_reward_history[-10:])
         print("Episode {}/{}, average last 10 rewards {}".format(
             episode+1, n_episodes, avg_rewards))
-        if avg_rewards >= 500.0:
-            break
 
 plt.figure(figsize=(10,5))
 plt.plot(episode_reward_history)
