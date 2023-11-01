@@ -144,9 +144,9 @@ model_target = generate_model_Qlearning(qubits, n_layers, n_actions, observables
 
 model_target.set_weights(model.get_weights())
 
-tf.keras.utils.plot_model(model, show_shapes=True, dpi=70)
+#tf.keras.utils.plot_model(model, show_shapes=True, dpi=70)
 
-tf.keras.utils.plot_model(model_target, show_shapes=True, dpi=70)
+#tf.keras.utils.plot_model(model_target, show_shapes=True, dpi=70)
 
 def interact_env(state, model, epsilon, n_actions, env, current_episode_length):
     # Preprocess state
@@ -198,8 +198,8 @@ def Q_learning_update(states, actions, rewards, next_states, done, model, gamma,
         optimizer.apply_gradients([(grads[w], model.trainable_variables[w])])
 
 
-gamma = 0.99
-n_episodes = 100
+gamma = 1
+n_episodes = 1000
 
 # Define replay memory
 max_memory_length = 10000 # Maximum replay length
@@ -207,10 +207,10 @@ replay_memory = deque(maxlen=max_memory_length)
 
 epsilon = 1.0  # Epsilon greedy parameter
 epsilon_min = 0.01  # Minimum epsilon greedy parameter
-decay_epsilon = 0.99 # Decay rate of epsilon greedy parameter
-batch_size = 16
+decay_epsilon = 0.01 # Decay rate of epsilon greedy parameter
+batch_size = 64
 steps_per_update = 10 # Train the model every x steps
-steps_per_target_update = 30 # Update the target model every x steps
+steps_per_target_update = 20 # Update the target model every x steps
 
 optimizer_in = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
 optimizer_var = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)

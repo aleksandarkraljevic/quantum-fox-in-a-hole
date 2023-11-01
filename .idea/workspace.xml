@@ -7,7 +7,7 @@
     <list default="true" id="e00aec3a-6384-4714-99f2-8726aec83469" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/fox_in_a_hole.py" beforeDir="false" afterPath="$PROJECT_DIR$/fox_in_a_hole.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model.png" beforeDir="false" afterPath="$PROJECT_DIR$/model.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/model.png" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/quantum_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/quantum_model.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

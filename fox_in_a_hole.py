@@ -8,7 +8,7 @@ class FoxInAHole():
 
     def reset(self):
         # reset the environment to initial state
-        self.done = 0 # 0 is not done, 1 is done which means that the game has been either won or lost
+        self.done = False
         self.fox = np.random.randint(1, self.n_holes+1)
         self.reward = 0
         return self.done
@@ -29,11 +29,11 @@ class FoxInAHole():
     def guess(self, action, timestep):
         # perform one guess in the game logic
         if action == self.fox:
-            self.done = 1 # the game is won when the fox is found
-            self.reward += 1
+            self.done = True # the game is won when the fox is found
+            self.reward = 1
         elif timestep == self.memory_size:
-            self.done = 1 # the game is lost if the fox hasn't been found after the max amount of timesteps
-            self.reward -= 1
+            self.done = True # the game is lost if the fox hasn't been found after the max amount of timesteps
+            self.reward = -1
         else:
-            self.reward -= 1
+            self.reward = -1
         return self.reward, self.done
