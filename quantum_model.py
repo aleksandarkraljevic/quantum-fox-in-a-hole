@@ -116,6 +116,7 @@ class Rescaling(tf.keras.layers.Layer):
     def call(self, inputs):
         return tf.math.multiply((inputs+1)/2, tf.repeat(self.w,repeats=tf.shape(inputs)[0],axis=0))
 
+
 n_holes = 5
 memory_size = 2*(n_holes-2)
 n_qubits = memory_size
@@ -138,6 +139,20 @@ def generate_model_Qlearning(qubits, n_layers, n_actions, observables, target):
     model = tf.keras.Model(inputs=[input_tensor], outputs=Q_values)
 
     return model
+
+def update_model(base_model, target_model, soft_update, tau):
+    '''
+    Copies weights from base model to target network.
+    param base_model:       tf base model
+    param target_network:   tf target network
+    '''
+    if soft_update:
+        new_weights = []
+        for TN_layer, BM_layer in zip(target_model.get_weights(), base_model.get_weights()):
+            new_weights.append((1-tau) * TN_layer + tau * BM_layer)
+        target_model.set_weights(new_weights)
+    else:
+        target_model.set_weights(base_model.get_weights())
 
 model = generate_model_Qlearning(qubits, n_layers, n_actions, observables, False)
 model_target = generate_model_Qlearning(qubits, n_layers, n_actions, observables, True)
@@ -186,7 +201,7 @@ def Q_learning_update(states, actions, rewards, next_states, done, model, gamma,
         tape.watch(model.trainable_variables)
         q_values = model([states])
         q_values_masked = tf.reduce_sum(tf.multiply(q_values, masks), axis=1)
-        loss = tf.keras.losses.Huber()(target_q_values, q_values_masked)
+        loss = tf.keras.losses.MeanSquaredError()(target_q_values, q_values_masked)
 
     # Backpropagation
     grads = tape.gradient(loss, model.trainable_variables)
@@ -195,10 +210,11 @@ def Q_learning_update(states, actions, rewards, next_states, done, model, gamma,
 
 
 gamma = 1
-n_episodes = 10
+n_episodes = 500
 
 # Define replay memory
 max_memory_length = 10000 # Maximum replay length
+min_memory_length = 1000
 replay_memory = deque(maxlen=max_memory_length)
 
 epsilon = 1.0  # Epsilon greedy parameter
@@ -206,7 +222,9 @@ epsilon_min = 0.01  # Minimum epsilon greedy parameter
 decay_epsilon = 0.01 # Decay rate of epsilon greedy parameter
 batch_size = 64
 steps_per_update = 10 # Train the model every x steps
-steps_per_target_update = 20 # Update the target model every x steps
+steps_per_target_update = 20 # parameter for hard updating target network weights
+tau = 0.05 # parameter for soft updating target network weights
+soft_weight_update = False # boolean that decides whether to soft update or hard update the target network weights
 
 optimizer_in = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
 optimizer_var = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
@@ -240,7 +258,7 @@ for episode in range(n_episodes):
         step_count += 1
 
         # Update model
-        if step_count % steps_per_update == 0:
+        if step_count % steps_per_update == 0 and len(replay_memory) >= min_memory_length:
             # Sample a batch of interactions and update Q_function
             training_batch = np.random.choice(replay_memory, size=batch_size)
             Q_learning_update(np.asarray([x['state'] for x in training_batch]),
@@ -251,8 +269,10 @@ for episode in range(n_episodes):
                               model, gamma, n_actions)
 
         # Update target model
-        if step_count % steps_per_target_update == 0:
-            model_target.set_weights(model.get_weights())
+        if soft_weight_update:
+            update_model(base_model=model, target_model=model_target, soft_update=soft_weight_update, tau=tau)
+        elif step_count % steps_per_target_update == 0:
+            update_model(base_model=model, target_model=model_target, soft_update=soft_weight_update, tau=tau)
 
         # Check if the episode is finished
         if interaction['done']:
@@ -264,14 +284,10 @@ for episode in range(n_episodes):
     epsilon = max(epsilon * decay_epsilon, epsilon_min)
     episode_length_history.append(episode_length)
     episode_reward_history.append(episode_reward)
-    if (episode+1)%10 == 0:
-        avg_rewards = np.mean(episode_reward_history[-10:])
-        print("Episode {}/{}, average last 10 rewards {}".format(
-            episode+1, n_episodes, avg_rewards))
 
 plt.figure(figsize=(10,5))
 plt.plot(episode_reward_history)
-plt.xlabel('Epsiode')
-plt.ylabel('Collected rewards')
+plt.xlabel('Episode')
+plt.ylabel('Reward')
 plt.show()
 
