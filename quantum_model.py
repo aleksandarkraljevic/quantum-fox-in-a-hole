@@ -1,15 +1,13 @@
 import importlib, pkg_resources
 importlib.reload(pkg_resources)
 
-import tensorflow as tf
+from helper import *
 import tensorflow_quantum as tfq
 
 import gym, cirq, sympy
 import numpy as np
-from fox_in_a_hole import *
 from functools import reduce
 from collections import deque, defaultdict
-import matplotlib.pyplot as plt
 from cirq.contrib.svg import SVGCircuit
 tf.get_logger().setLevel('ERROR')
 
@@ -119,14 +117,16 @@ class Rescaling(tf.keras.layers.Layer):
         return tf.math.multiply((inputs+1)/2, tf.repeat(self.w,repeats=tf.shape(inputs)[0],axis=0))
 
 n_holes = 5
-memory_size = 2*n_holes
+memory_size = 2*(n_holes-2)
 n_qubits = memory_size
 n_layers = 5 # Number of layers in the PQC
 n_actions = n_holes
 
 qubits = cirq.GridQubit.rect(1, n_qubits)
 ops = [cirq.Z(q) for q in qubits]
-observables = [ops[0]*ops[1], ops[2]*ops[3], ops[4]*ops[5], ops[6]*ops[7], ops[8]*ops[9]] # Z_0*Z_1 for action 0 and Z_2*Z_3 for action 1, etc.
+observables = []
+for i in range(n_holes):
+    observables.append(ops[i])
 
 def generate_model_Qlearning(qubits, n_layers, n_actions, observables, target):
     """Generates a Keras model for a data re-uploading PQC Q-function approximator."""
@@ -144,29 +144,25 @@ model_target = generate_model_Qlearning(qubits, n_layers, n_actions, observables
 
 model_target.set_weights(model.get_weights())
 
-#tf.keras.utils.plot_model(model, show_shapes=True, dpi=70)
-
-#tf.keras.utils.plot_model(model_target, show_shapes=True, dpi=70)
-
-def interact_env(state, model, epsilon, n_actions, env, current_episode_length):
+def interact_env(state, model, epsilon, n_actions, env):
     # Preprocess state
     state_array = np.array(state)
-    state = tf.convert_to_tensor([state_array])
+    state_tensor = tf.convert_to_tensor([state_array])
 
     # Sample action
     coin = np.random.random()
     if coin > epsilon:
-        q_vals = model([state])
+        q_vals = model([state_tensor])
         action = int(tf.argmax(q_vals[0]).numpy())
     else:
         action = np.random.choice(n_actions)
 
     # Apply sampled action in the environment, receive reward and next state
-    reward, done = env.guess(action, current_episode_length)
-    next_state = state_array.copy()
-    next_state[current_episode_length-1] = action
+    reward, done = env.guess(action)
+    next_state = state.copy()
+    next_state.append(action)
 
-    interaction = {'state': state_array, 'action': action, 'next_state': next_state.copy(),
+    interaction = {'state': state, 'action': action, 'next_state': next_state,
                    'reward': reward, 'done':np.float32(done)}
 
     return interaction
@@ -199,7 +195,7 @@ def Q_learning_update(states, actions, rewards, next_states, done, model, gamma,
 
 
 gamma = 1
-n_episodes = 1000
+n_episodes = 10
 
 # Define replay memory
 max_memory_length = 10000 # Maximum replay length
@@ -222,18 +218,19 @@ w_in, w_var, w_out = 1, 0, 2
 env = FoxInAHole(n_holes, memory_size)
 
 episode_reward_history = []
+episode_length_history = []
 step_count = 0
 for episode in range(n_episodes):
     episode_reward = 0
-    state = [0] * memory_size
+    state = deque([0] * memory_size, maxlen=memory_size)
     done = env.reset()
-    current_episode_length = 0
+    episode_length = 0
 
     while True:
-        current_episode_length += 1
+        episode_length += 1
 
         # Interact with env
-        interaction = interact_env(state, model, epsilon, n_actions, env, current_episode_length)
+        interaction = interact_env(state, model, epsilon, n_actions, env)
 
         # Store interaction in the replay memory
         replay_memory.append(interaction)
@@ -261,8 +258,11 @@ for episode in range(n_episodes):
         if interaction['done']:
             break
 
+        env.step()
+
     # Decay epsilon
     epsilon = max(epsilon * decay_epsilon, epsilon_min)
+    episode_length_history.append(episode_length)
     episode_reward_history.append(episode_reward)
     if (episode+1)%10 == 0:
         avg_rewards = np.mean(episode_reward_history[-10:])
