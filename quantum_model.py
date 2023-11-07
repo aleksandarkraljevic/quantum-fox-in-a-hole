@@ -121,7 +121,6 @@ n_holes = 5
 memory_size = 2*(n_holes-2)
 n_qubits = memory_size
 n_layers = 5 # Number of layers in the PQC
-n_actions = n_holes
 
 qubits = cirq.GridQubit.rect(1, n_qubits)
 ops = [cirq.Z(q) for q in qubits]
@@ -129,7 +128,7 @@ observables = []
 for i in range(n_holes):
     observables.append(ops[i])
 
-def generate_model_Qlearning(qubits, n_layers, n_actions, observables, target):
+def generate_model_Qlearning(qubits, n_layers, observables, target):
     """Generates a Keras model for a data re-uploading PQC Q-function approximator."""
 
     input_tensor = tf.keras.Input(shape=(len(qubits), ), dtype=tf.dtypes.float32, name='input')
@@ -154,24 +153,17 @@ def update_model(base_model, target_model, soft_update, tau):
     else:
         target_model.set_weights(base_model.get_weights())
 
-model = generate_model_Qlearning(qubits, n_layers, n_actions, observables, False)
-model_target = generate_model_Qlearning(qubits, n_layers, n_actions, observables, True)
+def save_data(model_target, savename, rewards, episode_lengths):
+    data = {'n_holes': n_holes, 'rewards': rewards, 'episode_lengths': episode_lengths}
+    np.save('data/' + savename + '.npy', data)
+    model_target.save_weights('models/' + savename)
+
+model = generate_model_Qlearning(qubits, n_layers, observables, False)
+model_target = generate_model_Qlearning(qubits, n_layers, observables, True)
 
 model_target.set_weights(model.get_weights())
 
-def interact_env(state, model, epsilon, n_actions, env):
-    # Preprocess state
-    state_array = np.array(state)
-    state_tensor = tf.convert_to_tensor([state_array])
-
-    # Sample action
-    coin = np.random.random()
-    if coin > epsilon:
-        q_vals = model([state_tensor])
-        action = int(tf.argmax(q_vals[0]).numpy())
-    else:
-        action = np.random.choice(n_actions)
-
+def interact_env(state, action, env):
     # Apply sampled action in the environment, receive reward and next state
     reward, done = env.guess(action)
     next_state = state.copy()
@@ -183,7 +175,7 @@ def interact_env(state, model, epsilon, n_actions, env):
     return interaction
 
 @tf.function
-def Q_learning_update(states, actions, rewards, next_states, done, model, gamma, n_actions):
+def Q_learning_update(states, actions, rewards, next_states, done, model, gamma):
     states = tf.convert_to_tensor(states)
     actions = tf.convert_to_tensor(actions)
     rewards = tf.convert_to_tensor(rewards)
@@ -194,7 +186,7 @@ def Q_learning_update(states, actions, rewards, next_states, done, model, gamma,
     future_rewards = model_target([next_states])
     target_q_values = rewards + (gamma * tf.reduce_max(future_rewards, axis=1)
                                                    * (1.0 - done))
-    masks = tf.one_hot(actions, n_actions)
+    masks = tf.one_hot(actions, n_holes)
 
     # Train the model on the states and target Q-values
     with tf.GradientTape() as tape:
@@ -210,21 +202,25 @@ def Q_learning_update(states, actions, rewards, next_states, done, model, gamma,
 
 
 gamma = 1
-n_episodes = 500
+n_episodes = 100
 
 # Define replay memory
 max_memory_length = 10000 # Maximum replay length
-min_memory_length = 1000
+min_memory_length = 0
 replay_memory = deque(maxlen=max_memory_length)
 
-epsilon = 1.0  # Epsilon greedy parameter
+epsilon_start = 1.0  # Epsilon greedy parameter
 epsilon_min = 0.01  # Minimum epsilon greedy parameter
 decay_epsilon = 0.01 # Decay rate of epsilon greedy parameter
+temperature = 0.01 # Temperature parameter for the Boltzmann exploration
 batch_size = 64
 steps_per_update = 10 # Train the model every x steps
 steps_per_target_update = 20 # parameter for hard updating target network weights
 tau = 0.05 # parameter for soft updating target network weights
 soft_weight_update = False # boolean that decides whether to soft update or hard update the target network weights
+exploration_strategy = 'boltzmann' # 'egreedy' or 'boltzmann'
+
+savename = 'test'
 
 optimizer_in = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
 optimizer_var = tf.keras.optimizers.Adam(learning_rate=0.001, amsgrad=True)
@@ -238,17 +234,37 @@ env = FoxInAHole(n_holes, memory_size)
 episode_reward_history = []
 episode_length_history = []
 step_count = 0
+
 for episode in range(n_episodes):
     episode_reward = 0
     state = deque([0] * memory_size, maxlen=memory_size)
     done = env.reset()
     episode_length = 0
 
+    # annealing, done before the while loop because the first episode equals 0 so it returns the original epsilon back
+    if exploration_strategy == 'egreedy':
+        epsilon = exponential_anneal(episode, epsilon_start, epsilon_min, decay_epsilon)
+
     while True:
         episode_length += 1
 
+        state_tensor = tf.convert_to_tensor([np.array(state)])
+        q_vals = model([state_tensor])
+        possible_actions = np.arange(n_holes)
+
+        # Sample action
+        if exploration_strategy == 'egreedy':
+            coin = np.random.random()
+            if coin > epsilon:
+                action = int(tf.argmax(q_vals[0]).numpy())
+            else:
+                action = np.random.randint(n_holes)
+        elif exploration_strategy == 'boltzmann':
+            probabilities = boltzmann_exploration(np.array(q_vals), temperature)
+            action = np.random.choice(possible_actions, p=probabilities)
+
         # Interact with env
-        interaction = interact_env(state, model, epsilon, n_actions, env)
+        interaction = interact_env(state, action, env)
 
         # Store interaction in the replay memory
         replay_memory.append(interaction)
@@ -266,7 +282,7 @@ for episode in range(n_episodes):
                               np.asarray([x['reward'] for x in training_batch], dtype=np.float32),
                               np.asarray([x['next_state'] for x in training_batch]),
                               np.asarray([x['done'] for x in training_batch], dtype=np.float32),
-                              model, gamma, n_actions)
+                              model, gamma)
 
         # Update target model
         if soft_weight_update:
@@ -280,14 +296,17 @@ for episode in range(n_episodes):
 
         env.step()
 
-    # Decay epsilon
-    epsilon = max(epsilon * decay_epsilon, epsilon_min)
     episode_length_history.append(episode_length)
     episode_reward_history.append(episode_reward)
+
+    if episode % 50 == 0:
+        print('Training progress: '+str(episode)+'/'+str(n_episodes))
+
+if savename != False:
+    save_data(model_target, savename, episode_reward_history, episode_length_history)
 
 plt.figure(figsize=(10,5))
 plt.plot(episode_reward_history)
 plt.xlabel('Episode')
 plt.ylabel('Reward')
 plt.show()
-

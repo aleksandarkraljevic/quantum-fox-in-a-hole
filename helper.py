@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import seaborn as sns
 import pandas as pd
+from collections import deque
 from scipy.signal import savgol_filter
 from fox_in_a_hole import *
 
@@ -30,7 +31,7 @@ def plot(data_name, show, savename, smooth):
     data = np.load('data/'+data_name+'.npy', allow_pickle=True)
     rewards = data.item().get('rewards')
     if smooth==True:
-        rewards = savgol_filter(rewards, 31, 1)
+        rewards = savgol_filter(rewards, 71, 1)
     episodes = np.arange(1, len(rewards) + 1)
     dataframe = np.vstack((rewards, episodes)).transpose()
     dataframe = pd.DataFrame(data=dataframe, columns=['reward', 'episodes'])
@@ -46,7 +47,8 @@ def plot(data_name, show, savename, smooth):
 def plot_averaged(data_names, show, savename, smooth):
     n_names = len(data_names)
     data = np.load('data/'+data_names[0]+'.npy', allow_pickle=True)
-    memory_size = data.item().get('memory_size')
+    n_holes = data.item().get('n_holes')
+    memory_size = 2 * (n_holes - 2)
     rewards = data.item().get('rewards')
     episodes = np.arange(1, len(rewards) + 1)
     for i in range(n_names-1):
@@ -58,7 +60,7 @@ def plot_averaged(data_names, show, savename, smooth):
     lower_bound = np.clip(mean_rewards-se_rewards, -1*memory_size , 1)
     upper_bound = np.clip(mean_rewards+se_rewards, -1*memory_size, 1)
     if smooth == True:
-        mean_rewards = savgol_filter(mean_rewards, 51, 1)
+        mean_rewards = savgol_filter(mean_rewards, 71, 1)
     dataframe = np.vstack((mean_rewards, episodes)).transpose()
     dataframe = pd.DataFrame(data=dataframe, columns=['reward', 'episodes'])
 
@@ -79,7 +81,8 @@ def compare_models(parameter_names, repetitions, show, savename, label_names, sm
 
     for experiment in range(len(parameter_names)):
         data = np.load('data/'+parameter_names[experiment]+'-repetition_1.npy', allow_pickle=True)
-        memory_size = data.item().get('memory_size')
+        n_holes = data.item().get('n_holes')
+        memory_size = 2*(n_holes-2)
         rewards = data.item().get('rewards')
         episodes = np.arange(1, len(rewards) + 1)
         for i in range(repetitions-1):
@@ -91,7 +94,7 @@ def compare_models(parameter_names, repetitions, show, savename, label_names, sm
         lower_bound = np.clip(mean_rewards - se_rewards, -1 * memory_size, 1)
         upper_bound = np.clip(mean_rewards + se_rewards, -1 * memory_size, 1)
         if smooth == True:
-            mean_rewards = savgol_filter(mean_rewards, 51, 1)
+            mean_rewards = savgol_filter(mean_rewards, 71, 1)
         dataframe = np.vstack((mean_rewards, episodes)).transpose()
         dataframe = pd.DataFrame(data=dataframe, columns=['reward', 'episodes'])
 
@@ -108,41 +111,38 @@ def evaluate(model_name, n_samples, print_strategy, print_evaluation):
     model = tf.keras.models.load_model('models/'+model_name+'.keras')
     data = np.load('data/'+model_name+'.npy', allow_pickle=True)
     n_holes = data.item().get('n_holes')
-    memory_size = data.item().get('memory_size')
+    memory_size = 2*(n_holes-2)
     env = FoxInAHole(n_holes, memory_size)
-    observation = [0] * memory_size
-    done = env.reset()
-    won, lost = done
-    current_episode_length = 0
     episode_lengths = []
-    rewards = []
+    episode_rewards = []
     if print_strategy:
-        for step in range(len(observation)):
+        done = env.reset()
+        observation = deque([0]*memory_size, maxlen=memory_size)
+        for step in range(memory_size):
             predicted_q_values = model(np.asarray(observation).reshape(1, memory_size))
             action = np.argmax(predicted_q_values) + 1
-            observation[step] = action
+            observation.append(action)
         print(observation)
-        observation = [0] * memory_size
     for sample in range(n_samples):
-        while (not won) and (not lost):
+        current_episode_length = 0
+        episode_reward = 0
+        done = env.reset()
+        observation = deque([0]*memory_size, maxlen=memory_size)
+        while not done:
             current_episode_length += 1
             predicted_q_values = model(np.asarray(observation).reshape(1, memory_size))
             action = np.argmax(predicted_q_values) + 1
-            reward, done = env.guess(action, current_episode_length)
-            won, lost = done
+            reward, done = env.guess(action)
+            episode_reward += reward
             new_observation = observation.copy()
-            new_observation[current_episode_length - 1] = action
+            new_observation.append(action)
             observation = new_observation
             env.step()
         episode_lengths.append(current_episode_length)
-        rewards.append(reward)
-        current_episode_length = 0
-        done = env.reset()
-        won, lost = done
-        observation = [0] * memory_size
+        episode_rewards.append(episode_reward)
 
     if print_evaluation:
         print('The average amount of guesses needed to finish the game is: ',round(np.mean(episode_lengths),2))
-        print('The average reward per game after '+str(n_samples)+' games is: ',round(np.mean(rewards),2))
+        print('The average reward per game after '+str(n_samples)+' games is: ',round(np.mean(episode_rewards),2))
 
     return np.mean(episode_lengths)
