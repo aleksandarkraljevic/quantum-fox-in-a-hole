@@ -4,7 +4,7 @@ importlib.reload(pkg_resources)
 from helper import *
 import tensorflow_quantum as tfq
 
-import gym, cirq, sympy
+import cirq, sympy
 import numpy as np
 from functools import reduce
 from collections import deque, defaultdict
@@ -304,9 +304,3 @@ for episode in range(n_episodes):
 
 if savename != False:
     save_data(model_target, savename, episode_reward_history, episode_length_history)
-
-plt.figure(figsize=(10,5))
-plt.plot(episode_reward_history)
-plt.xlabel('Episode')
-plt.ylabel('Reward')
-plt.show()

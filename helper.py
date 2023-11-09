@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
-import tensorflow as tf
 import seaborn as sns
 import pandas as pd
 from collections import deque
 from scipy.signal import savgol_filter
 from fox_in_a_hole import *
+from quantum_NN import *
 
 def exponential_anneal(t, start, final, decay_constant):
     '''
@@ -107,8 +107,10 @@ def compare_models(parameter_names, repetitions, show, savename, label_names, sm
     if show:
         plt.show()
 
-def evaluate(model_name, n_samples, print_strategy, print_evaluation):
-    model = tf.keras.models.load_model('models/'+model_name+'.keras')
+def evaluate(model_name, qubits, n_layers, observables, n_samples, print_strategy, print_evaluation):
+    quantum_model = QuantumModel(qubits, n_layers, observables)
+    model = quantum_model.generate_model_Qlearning(False)
+    model.load_weights('models/'+model_name)
     data = np.load('data/'+model_name+'.npy', allow_pickle=True)
     n_holes = data.item().get('n_holes')
     memory_size = 2*(n_holes-2)
@@ -117,26 +119,28 @@ def evaluate(model_name, n_samples, print_strategy, print_evaluation):
     episode_rewards = []
     if print_strategy:
         done = env.reset()
-        observation = deque([0]*memory_size, maxlen=memory_size)
+        state = deque([0]*memory_size, maxlen=memory_size)
         for step in range(memory_size):
-            predicted_q_values = model(np.asarray(observation).reshape(1, memory_size))
-            action = np.argmax(predicted_q_values) + 1
-            observation.append(action)
-        print(observation)
+            state_tensor = tf.convert_to_tensor([np.array(state)])
+            q_vals = model([state_tensor])
+            action = np.argmax(q_vals) + 1
+            state.append(action)
+        print(state)
     for sample in range(n_samples):
         current_episode_length = 0
         episode_reward = 0
         done = env.reset()
-        observation = deque([0]*memory_size, maxlen=memory_size)
+        state = deque([0]*memory_size, maxlen=memory_size)
         while not done:
             current_episode_length += 1
-            predicted_q_values = model(np.asarray(observation).reshape(1, memory_size))
-            action = np.argmax(predicted_q_values) + 1
+            state_tensor = tf.convert_to_tensor([np.array(state)])
+            q_vals = model([state_tensor])
+            action = np.argmax(q_vals)
             reward, done = env.guess(action)
             episode_reward += reward
-            new_observation = observation.copy()
+            new_observation = state.copy()
             new_observation.append(action)
-            observation = new_observation
+            state = new_observation
             env.step()
         episode_lengths.append(current_episode_length)
         episode_rewards.append(episode_reward)
