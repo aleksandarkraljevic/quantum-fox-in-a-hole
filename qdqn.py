@@ -5,15 +5,17 @@ from helper import *
 from fox_in_a_hole import *
 
 import cirq
+import time
 import numpy as np
 from collections import deque
 tf.get_logger().setLevel('ERROR')
 
 class QDQN():
-    def __init__(self, savename, model, model_target, n_holes, qubits, memory_size, learning_rates, gamma, n_episodes, steps_per_train, soft_weight_update, steps_per_target_update, tau, epsilon_start, epsilon_min, decay_epsilon, temperature, batch_size, min_size_buffer, max_size_buffer, exploration_strategy):
+    def __init__(self, savename, model, model_target, n_layers, n_holes, qubits, memory_size, learning_rates, gamma, n_episodes, steps_per_train, soft_weight_update, steps_per_target_update, tau, epsilon_start, epsilon_min, decay_epsilon, temperature, batch_size, min_size_buffer, max_size_buffer, exploration_strategy):
         self.savename = savename
         self.model = model
         self.model_target = model_target
+        self.n_layers = n_layers
         self.n_holes = n_holes
         self.qubits = qubits
         self.memory_size = memory_size
@@ -34,7 +36,7 @@ class QDQN():
         self.optimizer_in = tf.keras.optimizers.Adam(learning_rate=learning_rates[0], amsgrad=True)
         self.optimizer_var = tf.keras.optimizers.Adam(learning_rate=learning_rates[1], amsgrad=True)
         self.optimizer_out = tf.keras.optimizers.Adam(learning_rate=learning_rates[2], amsgrad=True)
-        # Assign the model parameters to each optimizer
+        # Indexes of the weights for each of the parts of the circuit
         self.w_in, self.w_var, self.w_out = 1, 0, 2
 
     def main(self):
@@ -129,7 +131,7 @@ class QDQN():
             self.model_target.set_weights(self.model.get_weights())
 
     def save_data(self, rewards, episode_lengths):
-        data = {'n_holes': self.n_holes, 'rewards': rewards, 'episode_lengths': episode_lengths}
+        data = {'n_holes': self.n_holes, 'rewards': rewards, 'episode_lengths': episode_lengths, 'n_layers': self.n_layers}
         np.save('data/' + self.savename + '.npy', data)
         self.model_target.save_weights('models/' + self.savename)
 
@@ -188,7 +190,7 @@ def main():
 
     # Define replay memory
     max_size_buffer = 10000 # Maximum replay length
-    min_size_buffer = 0
+    min_size_buffer = 1000
 
     epsilon_start = 1.0  # Epsilon greedy parameter
     epsilon_min = 0.01  # Minimum epsilon greedy parameter
@@ -203,6 +205,8 @@ def main():
 
     savename = 'test'
 
+    start = time.time()
+
     quantum_model = QuantumModel(qubits, n_layers, observables)
 
     model = quantum_model.generate_model_Qlearning(False)
@@ -210,9 +214,13 @@ def main():
 
     model_target.set_weights(model.get_weights())
 
-    qdqn = QDQN(savename, model, model_target, n_holes, qubits, memory_size, learning_rates, gamma, n_episodes, steps_per_train, soft_weight_update, steps_per_target_update, tau, epsilon_start, epsilon_min, decay_epsilon, temperature, batch_size, min_size_buffer, max_size_buffer, exploration_strategy)
+    qdqn = QDQN(savename, model, model_target, n_layers, n_holes, qubits, memory_size, learning_rates, gamma, n_episodes, steps_per_train, soft_weight_update, steps_per_target_update, tau, epsilon_start, epsilon_min, decay_epsilon, temperature, batch_size, min_size_buffer, max_size_buffer, exploration_strategy)
 
     qdqn.main()
+
+    end = time.time()
+
+    print('Total time: {} seconds (number of episodes: {})'.format(round(end - start, 1), n_episodes))
 
 if __name__ == '__main__':
     main()

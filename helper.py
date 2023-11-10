@@ -40,7 +40,7 @@ def plot(data_name, show, savename, smooth):
     sns.lineplot(data=dataframe, x='episodes', y='reward')
     plt.title('Reward per episode')
     if savename != False:
-        plt.savefig('plots/'+savename)
+        plt.savefig('plots/'+savename+'.png')
     if show:
         plt.show()
 
@@ -107,13 +107,19 @@ def compare_models(parameter_names, repetitions, show, savename, label_names, sm
     if show:
         plt.show()
 
-def evaluate(model_name, qubits, n_layers, observables, n_samples, print_strategy, print_evaluation):
-    quantum_model = QuantumModel(qubits, n_layers, observables)
-    model = quantum_model.generate_model_Qlearning(False)
-    model.load_weights('models/'+model_name)
+def evaluate(model_name, n_samples, print_strategy, print_evaluation):
     data = np.load('data/'+model_name+'.npy', allow_pickle=True)
     n_holes = data.item().get('n_holes')
-    memory_size = 2*(n_holes-2)
+    n_layers = data.item().get('n_layers')
+    memory_size = 2 * (n_holes - 2)
+    qubits = cirq.GridQubit.rect(1, memory_size)
+    ops = [cirq.Z(q) for q in qubits]
+    observables = []
+    for i in range(n_holes):
+        observables.append(ops[i])
+    quantum_model = QuantumModel(qubits, n_layers, observables)
+    model = quantum_model.generate_model_Qlearning(False)
+    model.load_weights('models/' + model_name)
     env = FoxInAHole(n_holes, memory_size)
     episode_lengths = []
     episode_rewards = []
