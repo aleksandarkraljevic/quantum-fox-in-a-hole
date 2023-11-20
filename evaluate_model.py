@@ -36,14 +36,14 @@ def evaluate_model(name, n_samples, print_strategy, print_evaluation, plot_model
             plot(data_name=name, show=show, savename=False, smooth=False)
             plot(data_name=name, show=show, savename=False, smooth=True)
 
-parameter_names = ['lr_0.1-dc_0.01', 'lr_0.01-dc_0.01', 'lr_0.001-dc_0.001']
-label_names = ['lr_0.1-dc_0.01', 'lr_0.01-dc_0.01', 'lr_0.001-dc_0.001']
-parameter_name = 'lr_in_0.001-lr_var_0.001-lr_out_0.1-dc_0.01'
+parameter_names = ['layers_9', 'layers_10']
+label_names = ['layers_9', 'layers_10']
+parameter_name = 'lr_in_0.001-lr_var_0.001-lr_out_0.1-dc_0.001'
 
-evaluate_model(parameter_name+'-repetition_1', 100, True, True, True, True, True)
+#evaluate_model(parameter_name+'-repetition_1', 100, True, True, True, True, True)
 
-#compare_models(parameter_names=parameter_names, repetitions=20, show=True, savename='compare_egreedy', label_names=label_names, smooth=True)
+compare_models(parameter_names=parameter_names, repetitions=20, show=True, savename='compare_layers_9_10', label_names=label_names, smooth=True)
 
-#evaluate_experiment(parameter_name=parameter_name, repetitions=20, n_samples=10000, print_strategies=True, print_evaluation=True)
+#evaluate_experiment(parameter_name=parameter_name, repetitions=20, n_samples=100, print_strategies=True, print_evaluation=True)
 
-#plot_experiment(parameter_name, 3, True, True)
+#plot_experiment(parameter_name, 20, True, True)

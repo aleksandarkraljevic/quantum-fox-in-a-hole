@@ -30,6 +30,8 @@ def boltzmann_exploration(actions, temperature):
 def plot(data_name, show, savename, smooth):
     data = np.load('data/'+data_name+'.npy', allow_pickle=True)
     rewards = data.item().get('rewards')
+    n_holes = data.item().get('n_holes')
+    memory_size = 2 * (n_holes - 2)
     if smooth==True:
         rewards = savgol_filter(rewards, 71, 1)
     episodes = np.arange(1, len(rewards) + 1)
@@ -38,6 +40,7 @@ def plot(data_name, show, savename, smooth):
     plt.figure()
     sns.set_theme()
     sns.lineplot(data=dataframe, x='episodes', y='reward')
+    plt.ylim(-1 * memory_size, 0)
     plt.title('Reward per episode')
     if savename != False:
         plt.savefig('plots/'+savename+'.png')
@@ -57,8 +60,8 @@ def plot_averaged(data_names, show, savename, smooth):
         rewards = np.vstack((rewards, new_rewards))
     mean_rewards = np.mean(rewards, axis=0)
     se_rewards = np.std(rewards, axis=0) / np.sqrt(n_names) # standard error
-    lower_bound = np.clip(mean_rewards-se_rewards, -1*memory_size , 1)
-    upper_bound = np.clip(mean_rewards+se_rewards, -1*memory_size, 1)
+    lower_bound = np.clip(mean_rewards-se_rewards, None , 0)
+    upper_bound = np.clip(mean_rewards+se_rewards, None, 0)
     if smooth == True:
         mean_rewards = savgol_filter(mean_rewards, 71, 1)
     dataframe = np.vstack((mean_rewards, episodes)).transpose()
@@ -68,6 +71,7 @@ def plot_averaged(data_names, show, savename, smooth):
     sns.set_theme()
     sns.lineplot(data=dataframe, x='episodes', y='reward')
     plt.fill_between(episodes, lower_bound, upper_bound, color='b', alpha=0.2)
+    plt.ylim(-1*memory_size,0)
     plt.title('Mean reward per episode')
     if savename != False:
         plt.savefig('plots/'+savename+'.png')
@@ -91,8 +95,8 @@ def compare_models(parameter_names, repetitions, show, savename, label_names, sm
             rewards = np.vstack((rewards, new_rewards))
         mean_rewards = np.mean(rewards, axis=0)
         se_rewards = np.std(rewards, axis=0) / np.sqrt(repetitions)  # standard error
-        lower_bound = np.clip(mean_rewards - se_rewards, -1 * memory_size, 1)
-        upper_bound = np.clip(mean_rewards + se_rewards, -1 * memory_size, 1)
+        lower_bound = np.clip(mean_rewards - se_rewards, None, 0)
+        upper_bound = np.clip(mean_rewards + se_rewards, None, 0)
         if smooth == True:
             mean_rewards = savgol_filter(mean_rewards, 71, 1)
         dataframe = np.vstack((mean_rewards, episodes)).transpose()
@@ -100,6 +104,7 @@ def compare_models(parameter_names, repetitions, show, savename, label_names, sm
 
         sns.lineplot(data=dataframe, x='episodes', y='reward', label=label_names[experiment])
         plt.fill_between(episodes, lower_bound, upper_bound, alpha=0.3)
+        plt.ylim(-1 * memory_size, 0)
 
     plt.title('Mean reward per episode')
     if savename != False:

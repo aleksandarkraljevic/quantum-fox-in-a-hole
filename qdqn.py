@@ -110,7 +110,7 @@ class QDQN():
             episode_length_history.append(episode_length)
             episode_reward_history.append(episode_reward)
 
-            if episode % 50 == 0:
+            if episode % 100 == 0:
                 print('Training progress: ' + str(episode) + '/' + str(self.n_episodes))
 
         if self.savename != False:
