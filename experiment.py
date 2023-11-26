@@ -1,11 +1,11 @@
-from qdqn import *
+from quantum_model import *
 
 # amount of repetitions that will be averaged over for the experiment
-repetitions = 20
+repetitions = 2
 # amount of episodes that will run
 n_episodes = 5000
 # game parameters
-n_holes = 5
+n_holes = 9
 memory_size = 2*(n_holes-2)
 n_qubits = memory_size
 n_layers = 7  # Number of layers in the PQC
@@ -38,9 +38,9 @@ data_names = []
 
 start = time.time()
 
-savename = 'experiment'
+savename = 'holes_'+str(n_holes)
 for rep in range(repetitions):
-    quantum_model = QuantumModel(qubits, layer, observables)
+    quantum_model = QuantumModel(qubits, n_layers, observables)
 
     model = quantum_model.generate_model_Qlearning(False)
     model_target = quantum_model.generate_model_Qlearning(True)

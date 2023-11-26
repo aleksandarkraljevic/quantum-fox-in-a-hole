@@ -4,7 +4,7 @@ import pandas as pd
 from collections import deque
 from scipy.signal import savgol_filter
 from fox_in_a_hole import *
-from quantum_NN import *
+from pqc import *
 
 def exponential_anneal(t, start, final, decay_constant):
     '''
@@ -80,6 +80,7 @@ def plot_averaged(data_names, show, savename, smooth):
 
 def compare_models(parameter_names, repetitions, show, savename, label_names, smooth):
     # this function requires the user to put all the experiment data in the data folder
+    colors_list = ['blue', 'orange', 'green', 'red', 'purple', 'brown']
     plt.figure()
     sns.set_theme()
 
@@ -103,7 +104,7 @@ def compare_models(parameter_names, repetitions, show, savename, label_names, sm
         dataframe = pd.DataFrame(data=dataframe, columns=['reward', 'episodes'])
 
         sns.lineplot(data=dataframe, x='episodes', y='reward', label=label_names[experiment])
-        plt.fill_between(episodes, lower_bound, upper_bound, alpha=0.3)
+        plt.fill_between(episodes, lower_bound, upper_bound, color=colors_list[experiment], alpha=0.1)
         plt.ylim(-1 * memory_size, 0)
 
     plt.title('Mean reward per episode')
