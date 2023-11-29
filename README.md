@@ -2,7 +2,7 @@
 
 The code consists of six .py files:
 - quantum_model.py:
-    This is the file that handles the training of the quantum reinforcement learning model, which in this case is equivalent to a DDQN except that the DNN is replaced with a PQC.
+    This is the file that handles the training of the quantum reinforcement learning model, which in this case is equivalent to a DDQN, except that the DNN is replaced with a PQC.
 - pqc.py:
     This file contains the code which initializes a PQC, and any other functions with relation to PQC. Think of functions that act as quantum gates, the rescaling of outputs, the handling of classical inputs, etc.
 - evaluate_model.py:
