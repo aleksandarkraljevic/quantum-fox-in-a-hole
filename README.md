@@ -30,4 +30,4 @@ The code uses some python packages that need to be installed to run:
 To run any of the python files, make sure to have all the .py files in the same folder. In addition to this, make sure to create three empty folders called "data", "models", and "plots". As the names suggest, these are the files that the data, models, and plots will be saved in.
 
 ## Acknowledgements
-A substantial portion of the code in pqc.py and quantum_model.py was taken from a tensorflow quantum tutorial at "https://www.tensorflow.org/quantum/tutorials/quantum_reinforcement_learning".
+A substantial portion of the code in pqc.py and quantum_model.py was taken from a tensorflow quantum tutorial at https://www.tensorflow.org/quantum/tutorials/quantum_reinforcement_learning.
