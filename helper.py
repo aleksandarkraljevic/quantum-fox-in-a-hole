@@ -9,9 +9,17 @@ from pqc import *
 def exponential_anneal(t, start, final, decay_constant):
     '''
     Exponential annealing scheduler for epsilon-greedy policy.
-    param t:        current timestep
-    param start:    initial value
-    param final:    value after percentage*T steps
+
+    Parameters
+    ----------
+    t (int):
+        Current timestep.
+    start (float):
+        Initial epsilon value.
+    final (float):
+        Lowest possible value that epsilon can get to.
+    decay_constant (float):
+        The speed at which epsilon decays.
     '''
     return final + (start - final) * np.exp(-decay_constant*t)
 
@@ -19,15 +27,33 @@ def exponential_anneal(t, start, final, decay_constant):
 def boltzmann_exploration(actions, temperature):
     '''
     Boltzmann exploration policy.
-    param actions:      vector with possible actions
-    param temperature:  exploration parameter
-    return:             vector with probabilities for choosing each option
+
+    Parameters
+    ----------
+    actions (list):
+        Vector with possible actions.
+    temperature (float):
+        Strength of the exploration.
     '''
     actions = actions[0] - np.max(actions[0])
     a = actions / temperature  # scale by temperature
     return np.exp(a)/np.sum(np.exp(a))
 
 def plot(data_name, show, savename, smooth):
+    '''
+    Plots model training data.
+
+    Parameters
+    ----------
+    data_name (str):
+        The name of the data file, excluding the file extension.
+    show (boolean):
+        Whether the plot will be shown to the user.
+    savename (str):
+        What name the plot will be saved as. If False, then the plot is not saved.
+    smooth (boolean):
+        Whether savgol smoothing will be applied or not.
+    '''
     data = np.load('data/'+data_name+'.npy', allow_pickle=True)
     rewards = data.item().get('rewards')
     n_holes = data.item().get('n_holes')
@@ -48,6 +74,20 @@ def plot(data_name, show, savename, smooth):
         plt.show()
 
 def plot_averaged(data_names, show, savename, smooth):
+    '''
+    Plots an experiment's training average over all of its repetitions, including its standard errors.
+
+    Parameters
+    ----------
+    data_names (list):
+        A list of the data file names, excluding the file extensions.
+    show (boolean):
+        Whether the plot will be shown to the user.
+    savename (str):
+        What name the plot will be saved as. If False, then the plot is not saved.
+    smooth (boolean):
+        Whether savgol smoothing will be applied or not.
+    '''
     n_names = len(data_names)
     data = np.load('data/'+data_names[0]+'.npy', allow_pickle=True)
     n_holes = data.item().get('n_holes')
@@ -79,6 +119,24 @@ def plot_averaged(data_names, show, savename, smooth):
         plt.show()
 
 def compare_models(parameter_names, repetitions, show, savename, label_names, smooth):
+    '''
+    Plots multiple experiments' averaged training with their standard errors.
+
+    Parameters
+    ----------
+    parameter_names (list):
+        The list of the various experiments' parameter names, excluding "-repetition_" onwards.
+    repetitions (int):
+        The number of repetitions that each experiment contains.
+    show (boolean):
+        Whether the plot will be shown to the user.
+    savename (str):
+        What name the plot will be saved as. If False, then the plot is not saved.
+    label_names (list):
+        A list of strings representing the label name of each experiment in the plot's legend.
+    smooth (boolean):
+        Whether savgol smoothing will be applied or not.
+    '''
     # this function requires the user to put all the experiment data in the data folder
     colors_list = ['blue', 'orange', 'green', 'red', 'purple', 'brown']
     plt.figure()
@@ -114,6 +172,24 @@ def compare_models(parameter_names, repetitions, show, savename, label_names, sm
         plt.show()
 
 def evaluate(model_name, n_samples, print_strategy, print_evaluation, plot_distribution, save):
+    '''
+    Evaluates a single model by looking at its best-found strategy, and averaging its performance. It also plots the distribution of all the numbers of needed guesses after averaging.
+
+    Parameters
+    ----------
+    model_name (str):
+        The name of the model file, excluding the file extension.
+    n_samples (int):
+        The amount of samples that the model will be averaged over.
+    print_strategy (boolean):
+        Whether the strategy of the model will be printed.
+    print_evaluation (boolean):
+        Whether the performance of the model will be printed.
+    plot_distribution (boolean):
+        Whether the distribution of the numbers of needed guesses of all samples will be plotted.
+    save (boolean):
+        Whether the plots will be saved using the same name as parameter_name.
+    '''
     data = np.load('data/'+model_name+'.npy', allow_pickle=True)
     n_holes = data.item().get('n_holes')
     n_layers = data.item().get('n_layers')
@@ -126,7 +202,7 @@ def evaluate(model_name, n_samples, print_strategy, print_evaluation, plot_distr
     quantum_model = QuantumModel(qubits, n_layers, observables)
     model = quantum_model.generate_model_Qlearning(False)
     model.load_weights('models/' + model_name)
-    env = FoxInAHole(n_holes, memory_size)
+    env = FoxInAHole(n_holes)
     episode_lengths = []
     episode_rewards = []
     if print_strategy:
@@ -158,8 +234,10 @@ def evaluate(model_name, n_samples, print_strategy, print_evaluation, plot_distr
         episode_rewards.append(episode_reward)
 
     if print_evaluation:
-        print('The average amount of guesses needed to finish the game is: ',round(np.mean(episode_lengths),2))
-        print('The average reward per game after '+str(n_samples)+' games is: ',round(np.mean(episode_rewards),2))
+        print('The average amount of guesses needed to finish the game is:', round(np.mean(episode_lengths), 2), '+-',
+              round(np.std(episode_lengths) / np.sqrt(n_samples), 2))
+        print('The average reward per game is:', round(np.mean(episode_rewards), 2), '+-',
+              round(np.std(episode_rewards) / np.sqrt(n_samples), 2))
 
     if plot_distribution:
         episode_rewards = [x * (-1) + 1 for x in episode_rewards]

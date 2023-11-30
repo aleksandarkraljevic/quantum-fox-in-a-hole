@@ -5,6 +5,18 @@ import numpy as np
 
 class QuantumModel():
     def __init__(self, qubits, n_layers, observables):
+        '''
+        Initializes the parameters for the PQC.
+
+        Parameters
+        ----------
+        qubits (int):
+            The number of qubits that the PQC will use.
+        n_layers (int):
+            The number of layers that the PQC will contain.
+        observables (list):
+            The list of the observables that will be measured.
+        '''
         self.qubits = qubits
         self.n_layers = n_layers
         self.observables = observables
@@ -66,6 +78,14 @@ class QuantumModel():
 
 class Rescaling(tf.keras.layers.Layer):
     def __init__(self, input_dim):
+        '''
+        Initializes the rescaling parameters.
+
+        Parameters
+        ----------
+        input_dim (int):
+            The input dimension of what will be rescaled.
+        '''
         super(Rescaling, self).__init__()
         self.input_dim = input_dim
         self.w = tf.Variable(
@@ -73,6 +93,14 @@ class Rescaling(tf.keras.layers.Layer):
             trainable=True, name="obs-weights")
 
     def call(self, inputs):
+        '''
+        Performs the rescaling.
+
+        Parameters
+        ----------
+        inputs (array):
+            An array of the measurements that will be rescaled.
+        '''
         return tf.math.multiply((inputs+1)/2, tf.repeat(self.w,repeats=tf.shape(inputs)[0],axis=0))
 
 class ReUploadingPQC(tf.keras.layers.Layer):

@@ -1,11 +1,11 @@
 from quantum_model import *
 
 # amount of repetitions that will be averaged over for the experiment
-repetitions = 2
+repetitions = 20
 # amount of episodes that will run
 n_episodes = 5000
 # game parameters
-n_holes = 9
+n_holes = 5
 memory_size = 2*(n_holes-2)
 n_qubits = memory_size
 n_layers = 7  # Number of layers in the PQC

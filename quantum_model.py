@@ -12,6 +12,56 @@ tf.get_logger().setLevel('ERROR')
 
 class QDQN():
     def __init__(self, savename, model, model_target, n_layers, n_holes, qubits, memory_size, learning_rates, gamma, n_episodes, steps_per_train, soft_weight_update, steps_per_target_update, tau, epsilon_start, epsilon_min, decay_epsilon, temperature, batch_size, min_size_buffer, max_size_buffer, exploration_strategy):
+        '''
+        Initializes the QDQN parameters.
+
+        Parameters
+        ----------
+        savename (str):
+            The name with which the file model and data files will be saved.
+        model (tensorflow keras model):
+            The base network.
+        model_target (tensorflow keras model):
+            The target network.
+        n_layers (int):
+            The number of layers that the PQC will contain.
+        n_holes (int):
+            Number of outputs of the DNN. / Number of holes in the environment.
+        qubits (int):
+            The number of qubits that the PQC will use.
+        memory_size (int):
+            The amount of guesses that the agent is allowed to look back. / The state-space size.
+        learning_rates (list):
+            A list of three learning rates that the optimizers within the PQC use in order to update the encoding, variational, and rescaling weights.
+        gamma (float):
+            The discount factor that is used in the Q-learning algorithm.
+        n_episodes (int):
+            The amount of total episodes that the model will train for.
+        steps_per_train (int):
+            The amount of time steps that pass in between each training step.
+        soft_weight_update (boolean):
+            Whether the target network will be updated via soft-updating. If False, then it will be hard-updating.
+        steps_per_target_update (int):
+            Per how many training steps the target network will update, if it is hard-updating.
+        tau (float):
+            The fraction with which the base network copies over to the target network after each training step.
+        epsilon_start (float):
+            The starting value of epsilon in the case that annealing epsilon-greedy is used.
+        epsilon_min (float):
+            The lowest value of epsilon in the case that annealing epsilon-greedy is used.
+        decay_epsilon (float):
+            How fast epsilon decays in the case that annealing epsilon-greedy is used.
+        temperature (float):
+            The strength with which exploration finds place in the case that the Boltzmann policy is used.
+        batch_size (int):
+            The amount of samples that each training batch consists of.
+        min_size_buffer (int):
+            The minimum size that the experience replay buffer needs to be before training may start.
+        max_size_buffer (int):
+            The maximum size that the experience replay buffer is allowed to be. If this limit is reached then the oldest samples start being replaced with the newest samples.
+        exploration_strategy (str):
+            What exploration strategy should be followed during the training of the model. Either "egreedy" or "boltzmann".
+        '''
         self.savename = savename
         self.model = model
         self.model_target = model_target
@@ -40,7 +90,10 @@ class QDQN():
         self.w_in, self.w_var, self.w_out = 1, 0, 2
 
     def main(self):
-        env = FoxInAHole(self.n_holes, self.memory_size)
+        '''
+        Handles the main bulk of the QDQN, making use of all the other functions in this class.
+        '''
+        env = FoxInAHole(self.n_holes)
         replay_memory = deque(maxlen=self.max_size_buffer)
 
         episode_reward_history = []
@@ -118,9 +171,7 @@ class QDQN():
 
     def update_model(self):
         '''
-        Copies weights from base model to target network.
-        param base_model:       tf base model
-        param target_network:   tf target network
+        Copies weights from the base network to the network via a hard-update or soft-update rule.
         '''
         if self.soft_weight_update:
             new_weights = []
@@ -131,12 +182,33 @@ class QDQN():
             self.model_target.set_weights(self.model.get_weights())
 
     def save_data(self, rewards, episode_lengths):
+        '''
+        Saves the model after its training, as well as important results and properties.
+
+        Parameters
+        ----------
+        rewards (list):
+            A list of all the rewards that were obtained at the end of each episode.
+        episode_lengths (list):
+            A list of the length of each episode.
+        '''
         data = {'n_holes': self.n_holes, 'rewards': rewards, 'episode_lengths': episode_lengths, 'n_layers': self.n_layers}
         np.save('data/' + self.savename + '.npy', data)
         self.model_target.save_weights('models/' + self.savename)
 
     def interact_env(self, state, action, env):
-        # Apply sampled action in the environment, receive reward and next state
+        '''
+        Apply sampled action in the environment, receives reward and next state.
+
+        Parameters
+        ----------
+        state (tensor):
+            The state that the agent is in.
+        action (int):
+            The action that the agent decides to take.
+        env (class):
+            The environment that the agent performs an action in.
+        '''
         reward, done = env.guess(action)
         next_state = state.copy()
         next_state.append(action)
@@ -148,6 +220,22 @@ class QDQN():
 
     @tf.function
     def Q_learning_update(self, states, actions, rewards, next_states, done):
+        '''
+        Trains the QDQN model.
+
+        Parameters
+        ----------
+        states (array):
+            An array of all the states of the samples that will be used for training.
+        actions (array):
+            An array of all the actions of the samples that will be used for training.
+        rewards (array):
+            An array of all the rewards of the samples that will be used for training.
+        next_states (array):
+            An array of all the states of the samples after the corresponding action has been taken.
+        done (array):
+            An array of whether each sample's next_state was the final state before the game ended.
+        '''
         states = tf.convert_to_tensor(states)
         actions = tf.convert_to_tensor(actions)
         rewards = tf.convert_to_tensor(rewards)
@@ -173,10 +261,13 @@ class QDQN():
             optimizer.apply_gradients([(grads[w], self.model.trainable_variables[w])])
 
 def main():
+    '''
+    Initializes all the hyperparameters, creates the base and target network by calling upon dnn.py, and trains and saves the model by calling upon the DQN() class.
+    '''
     n_holes = 5
     memory_size = 2 * (n_holes - 2)
     n_qubits = memory_size
-    n_layers = 5  # Number of layers in the PQC
+    n_layers = 7  # Number of layers in the PQC
 
     qubits = cirq.GridQubit.rect(1, n_qubits)
     ops = [cirq.Z(q) for q in qubits]
@@ -184,8 +275,8 @@ def main():
     for i in range(n_holes):
         observables.append(ops[i])
 
-    n_episodes = 100
-    learning_rates = [0.001, 0.001, 0.1]
+    n_episodes = 5000
+    learning_rates = [0.0001, 0.01, 0.1]
     gamma = 1
 
     # Define replay memory
@@ -198,10 +289,10 @@ def main():
     temperature = 0.01 # Temperature parameter for the Boltzmann exploration
     batch_size = 64
     steps_per_train = 10 # Train the model every x steps
-    steps_per_target_update = 20 # parameter for hard updating target network weights
+    steps_per_target_update = 10 # parameter for hard updating target network weights
     tau = 0.05 # parameter for soft updating target network weights
-    soft_weight_update = False # boolean that decides whether to soft update or hard update the target network weights
-    exploration_strategy = 'boltzmann' # 'egreedy' or 'boltzmann'
+    soft_weight_update = True # boolean that decides whether to soft update or hard update the target network weights
+    exploration_strategy = 'egreedy' # 'egreedy' or 'boltzmann'
 
     savename = 'test'
 
